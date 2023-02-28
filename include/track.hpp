@@ -10,7 +10,6 @@
 
 using namespace std;
 using namespace cv;
-#define mydataFmt float
 
 struct Bbox
 {
@@ -22,24 +21,24 @@ struct Bbox
 typedef struct TrackingBox
 {
     int frame_id;
-    int track_id;  // track_id in current frame
+    int track_id;
     Rect_<float> box;
 } TrackingBox;
 
-struct TRACK
+struct TRACKER
 {
 // global variables for counting
-#define CNUM 255 // max num. of people per frame
-    int total_frames = 0;
-    double total_time = 0.0;
+#define CNUM 100 // max num. of people per frame
+    // int total_frames = 0;  // 记录总帧数
+    double total_time = 0.0;  // 记录总耗时
 
     Scalar_<int> randColor[CNUM];
 
-    int frame_count = 0;
-    int max_age = 5;
-    int min_hits = 3;
+    int frame_count = 0; // 记录处理了多少帧数据。由于刚调用update函数就会加一，所以是从1开始计数
+    int max_age = 3;     // 连续预测的最大次数，即目标未被检测到的帧数，超过之后会被删
+    int min_hits = 3;    // 目标命中的最小次数，小于该次数时update函数不返回该目标的KalmanTracker卡尔曼滤波对象
     double iouThreshold = 0.3;
-    vector<KalmanTracker> trackers;
+    vector<KalmanTracker> trackers; // 维护所有的跟踪序列，列表元素是KalmanTracker的对象
 
     // variables used in the for-loop
     vector<Rect_<float>> predictedBoxes;
@@ -50,14 +49,14 @@ struct TRACK
     set<int> allItems;
     set<int> matchedItems;
     vector<cv::Point> matchedPairs;
-    vector<TrackingBox> frameTrackingResult;
+    vector<TrackingBox> frameTrackingResult;  // 用于保存最新的对外输出结果
     unsigned int trkNum = 0;
     unsigned int detNum = 0;
 
     double cycle_time = 0.0;
     int64 start_time = 0;
 
-    TRACK()
+    TRACKER()
     {
         KalmanTracker::kf_count = 0; // tracking id relies on this, so we have to reset it in each seq.
         RNG rng(0xFFFFFFFF);
@@ -79,15 +78,14 @@ struct TRACK
 
     vector<TrackingBox> update(const vector<TrackingBox> &detFrameData)
     {
-        total_frames++;
+        // total_frames++;
         frame_count++;
-        //cout << frame_count << endl;
 
-        // I used to count running time using clock(), but found it seems to conflict with cv::cvWaitkey(),
-        // when they both exists, clock() can not get right result. Now I use cv::getTickCount() instead.
+        // count running time using clock()
         start_time = getTickCount();
 
-        if (trackers.size() == 0) // the first frame met
+        // 初始化，the first frame met
+        if (trackers.size() == 0) 
         {
             // initialize kalman trackers using first detections.
             for (unsigned int i = 0; i < detFrameData.size(); i++)
@@ -125,8 +123,8 @@ struct TRACK
 
         iouMatrix.clear();
         iouMatrix.resize(trkNum, vector<double>(detNum, 0));
-
-        for (unsigned int i = 0; i < trkNum; i++) // compute iou matrix as a distance matrix
+        // compute iou matrix as a distance matrix
+        for (unsigned int i = 0; i < trkNum; i++) 
         {
             for (unsigned int j = 0; j < detNum; j++)
             {
@@ -139,7 +137,10 @@ struct TRACK
         // the resulting assignment is [track(prediction) : detection], with len=preNum
         HungarianAlgorithm HungAlgo;
         assignment.clear();
-        HungAlgo.Solve(iouMatrix, assignment);
+        double cost_ = HungAlgo.Solve(iouMatrix, assignment);
+        if (cost_ == -1.0) {
+            cout << "hungarian assignment error !" << endl; // 如果是因为异常值退出，则打印
+        }
 
         // find matches, unmatched_detections and unmatched_predictions
         unmatchedTrajectories.clear();
@@ -205,12 +206,14 @@ struct TRACK
         frameTrackingResult.clear();
         for (auto it = trackers.begin(); it != trackers.end();)
         {
-            if (((*it).m_time_since_update < 1) &&
+            // min_hits不设置为0是因为第一次检测到的目标不用跟踪，不能设大，一般就是1，表示如果连续两帧都检测到目标
+            int time_window = 1;  // 表示连续预测的次数
+            if (((*it).m_time_since_update < time_window) &&
                 ((*it).m_hit_streak >= min_hits || frame_count <= min_hits))
             {
                 TrackingBox res;
                 res.box = (*it).lastRect;
-                res.track_id = (*it).m_id + 1;
+                res.track_id = (*it).m_id + 1;  // +1 as MOT benchmark requires positive
                 res.frame_id = frame_count;
                 frameTrackingResult.push_back(res);
                 it++;

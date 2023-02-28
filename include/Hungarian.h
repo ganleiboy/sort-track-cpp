@@ -9,6 +9,9 @@
 // by Cong Ma, 2016
 //
 
+#ifndef HUNGARIAN_H
+#define HUNGARIAN_H
+
 #include <iostream>
 #include <vector>
 
@@ -31,3 +34,5 @@ private:
 	void step4(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim, int row, int col);
 	void step5(int *assignment, double *distMatrix, bool *starMatrix, bool *newStarMatrix, bool *primeMatrix, bool *coveredColumns, bool *coveredRows, int nOfRows, int nOfColumns, int minDim);
 };
+
+#endif

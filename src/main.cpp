@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 	std::map<int, vector<Bbox>> det_results; // key是frame_id
 	getDetectResults(detfile, det_results);
 
-	TRACK tracker;	  // 创建全局跟踪器
+	TRACKER tracker;  // 创建全局跟踪器
 	int frame_id = 1; // frame_id是从1开始编号的
 	// 逐帧遍历
 	for (auto imgpath : imgpaths)

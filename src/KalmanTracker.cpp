@@ -8,13 +8,14 @@ int KalmanTracker::kf_count = 0;
 // initialize Kalman filter
 void KalmanTracker::init_kf(StateType stateMat)
 {
-	int stateNum = 7;
-	int measureNum = 4;
+	int stateNum = 7;  // 一个7维的状态更新向量：[u,v,s,r,u^,v^,s^]T。Note：u^,v^,s^表示运动速度
+	int measureNum = 4;  // 一个4维的观测输入，即中心面积的形式[x,y,s,r]，即[检测框中心x坐标,y坐标,面积,宽高比]。
 	kf = KalmanFilter(stateNum, measureNum, 0);
 
-	measurement = Mat::zeros(measureNum, 1, CV_32F);
-
-	kf.transitionMatrix = (Mat_<float>(stateNum, stateNum) << 1, 0, 0, 0, 1, 0, 0,
+	// 状态转移矩阵(A)。默认两帧的时间间隔是1，无量纲
+	// Note：如果要计算实际运动速度，则右上角的三个1需要更改为两帧的时间间隔dt，并在每次调用predict()函数之前进行重置
+	kf.transitionMatrix = (Mat_<float>(stateNum, stateNum) << 
+						   1, 0, 0, 0, 1, 0, 0,
 						   0, 1, 0, 0, 0, 1, 0,
 						   0, 0, 1, 0, 0, 0, 1,
 						   0, 0, 0, 1, 0, 0, 0,
@@ -22,23 +23,25 @@ void KalmanTracker::init_kf(StateType stateMat)
 						   0, 0, 0, 0, 0, 1, 0,
 						   0, 0, 0, 0, 0, 0, 1);
 
-	setIdentity(kf.measurementMatrix);
-	setIdentity(kf.processNoiseCov, Scalar::all(1e-2));
-	setIdentity(kf.measurementNoiseCov, Scalar::all(1e-1));
-	setIdentity(kf.errorCovPost, Scalar::all(1));
+	measurement = Mat::zeros(measureNum, 1, CV_32F);		// 观测值，初始化为0
+	
+	setIdentity(kf.measurementMatrix);						// 测量矩阵 H
+	setIdentity(kf.processNoiseCov, Scalar::all(1e-2));		// 系统误差 Q
+	setIdentity(kf.measurementNoiseCov, Scalar::all(1e-1)); // 测量误差 R
+	setIdentity(kf.errorCovPost, Scalar::all(1));			// 最小均方误差 P'(k))
 
 	// initialize state vector with bounding box in [cx,cy,s,r] style
-	kf.statePost.at<float>(0, 0) = stateMat.x + stateMat.width / 2;
-	kf.statePost.at<float>(1, 0) = stateMat.y + stateMat.height / 2;
-	kf.statePost.at<float>(2, 0) = stateMat.area();
-	kf.statePost.at<float>(3, 0) = stateMat.width / stateMat.height;
+	kf.statePost.at<float>(0, 0) = stateMat.x + stateMat.width / 2;	 // 检测框中心x坐标
+	kf.statePost.at<float>(1, 0) = stateMat.y + stateMat.height / 2; // 检测框中心y坐标
+	kf.statePost.at<float>(2, 0) = stateMat.area();					 // 检测框面积
+	kf.statePost.at<float>(3, 0) = stateMat.width / stateMat.height; // 检测框宽高比
 }
 
 // Predict the estimated bounding box.
 StateType KalmanTracker::predict()
 {
 	// predict
-	Mat p = kf.predict();
+	Mat p = kf.predict();  // 计算预测的状态值，一个7维的状态更新向量，最后三个元素是运动速度
 	m_age += 1;
 
 	if (m_time_since_update > 0)
@@ -68,7 +71,7 @@ void KalmanTracker::update(StateType stateMat)
 	measurement.at<float>(3, 0) = stateMat.width / stateMat.height;
 
 	// update
-	kf.correct(measurement);
+	kf.correct(measurement);  // 根据测量值更新状态值
 }
 
 // Return the current state vector
