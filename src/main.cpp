@@ -1,5 +1,5 @@
 #include "opencv2/opencv.hpp"
-#include "track.hpp"
+#include "track.h"
 #include "utils.h"
 
 int main(int argc, char **argv)
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 			detFrameData.push_back(cur_box);
 		}
 		++frame_id;
-		// 跟踪
+		// 跟踪 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 		vector<TrackingBox> tracking_results = tracker.update(detFrameData);
 		// 可视化跟踪结果
 		Mat frame = cv::imread(imgpath);
