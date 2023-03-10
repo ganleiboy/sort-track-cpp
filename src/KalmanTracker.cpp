@@ -43,32 +43,35 @@ StateType KalmanTracker::predict()
 	// predict
 	Mat p = kf.predict();  // 计算预测的状态值，一个7维的状态更新向量，最后三个元素是运动速度
 	m_age += 1;
-
-	if (m_time_since_update > 0)
+	
+	if (m_time_since_update > m_max_missing_observed_num)
 		m_hit_streak = 0;
 	m_time_since_update += 1;
 
 	StateType predictBox = get_rect_xysr(p.at<float>(0, 0), p.at<float>(1, 0), p.at<float>(2, 0), p.at<float>(3, 0));
 
 	m_history.push_back(predictBox);
-	return m_history.back();
+	return m_history.back();  // 返回对vector最后一个元素的引用
 }
 
 // Update the state vector with observed bounding box.
-void KalmanTracker::update(StateType stateMat)
+void KalmanTracker::update(TrackingBox track_box)
 {
-	this->lastRect = stateMat;
+	this->lastRect = track_box.box;
 
-	m_time_since_update = 0;
+	m_time_since_update = 0;  // 每次观察到目标就重置为0
 	m_history.clear();
-	m_hits += 1;
+	m_observed_num += 1;
 	m_hit_streak += 1;
 
+	obj_conf = track_box.obj_conf;
+	class_id = track_box.class_id;
+
 	// measurement
-	measurement.at<float>(0, 0) = stateMat.x + stateMat.width / 2;
-	measurement.at<float>(1, 0) = stateMat.y + stateMat.height / 2;
-	measurement.at<float>(2, 0) = stateMat.area();
-	measurement.at<float>(3, 0) = stateMat.width / stateMat.height;
+	measurement.at<float>(0, 0) = track_box.box.x + track_box.box.width / 2;
+	measurement.at<float>(1, 0) = track_box.box.y + track_box.box.height / 2;
+	measurement.at<float>(2, 0) = track_box.box.area();
+	measurement.at<float>(3, 0) = track_box.box.width / track_box.box.height;
 
 	// update
 	kf.correct(measurement);  // 根据测量值更新状态值

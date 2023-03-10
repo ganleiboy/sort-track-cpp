@@ -2,16 +2,15 @@
 
 double TRACKER::getIOU(Rect_<float> bb_test, Rect_<float> bb_gt)
 {
-    float in = (bb_test & bb_gt).area();
-    float un = bb_test.area() + bb_gt.area() - in;
-
-    if (un < DBL_EPSILON)
+    float intersection = (bb_test & bb_gt).area();
+    float unionArea = bb_test.area() + bb_gt.area() - intersection;
+    if (unionArea < DBL_EPSILON)
         return 0;
-
-    return (double)(in / un);
+    return (double)(intersection / unionArea);
 }
 
-vector<TrackingBox> TRACKER::update(const vector<TrackingBox> &detFrameData)
+
+void TRACKER::update(const vector<TrackingBox> &detFrameData)
 {
     // total_frames++;
     frame_count++;
@@ -25,10 +24,10 @@ vector<TrackingBox> TRACKER::update(const vector<TrackingBox> &detFrameData)
         // initialize kalman trackers using first detections.
         for (unsigned int i = 0; i < detFrameData.size(); i++)
         {
-            KalmanTracker trk = KalmanTracker(detFrameData[i].box);
+            KalmanTracker trk = KalmanTracker(detFrameData[i]);
             trackers.push_back(trk);
         }
-        return vector<TrackingBox>();
+        return;
     }
 
     ///////////////////////////////////////
@@ -91,7 +90,7 @@ vector<TrackingBox> TRACKER::update(const vector<TrackingBox> &detFrameData)
 
         for (unsigned int i = 0; i < trkNum; ++i)
             matchedItems.insert(assignment[i]);
-
+        // 找到没有配对上的检测框
         set_difference(allItems.begin(), allItems.end(),
                        matchedItems.begin(), matchedItems.end(),
                        insert_iterator<set<int>>(unmatchedDetections, unmatchedDetections.begin()));
@@ -121,49 +120,67 @@ vector<TrackingBox> TRACKER::update(const vector<TrackingBox> &detFrameData)
     ///////////////////////////////////////
     // 3.3. updating trackers
 
-    // update matched trackers with assigned detections.
+    // 3.3.1，update matched trackers with assigned detections.
     // each prediction is corresponding to a tracker
     int detIdx, trkIdx;
     for (unsigned int i = 0; i < matchedPairs.size(); i++)
     {
         trkIdx = matchedPairs[i].x;
         detIdx = matchedPairs[i].y;
-        trackers[trkIdx].update(detFrameData[detIdx].box);
+        trackers[trkIdx].update(detFrameData[detIdx]);
     }
 
-    // create and initialise new trackers for unmatched detections
+    // 3.3.2，create and initialise new trackers for unmatched detections
     for (auto umd : unmatchedDetections)
     {
-        KalmanTracker tracker = KalmanTracker(detFrameData[umd].box);
+        // 创建新tracker时不会调用KalmanTracker的update函数
+        KalmanTracker tracker = KalmanTracker(detFrameData[umd]);
         trackers.push_back(tracker);
     }
+    
+    // 3.3.3，更新未匹配上的跟踪序列
+    // 由于之前已经单独调用过predict函数，所以不再进行任何操作
 
-    // get trackers' output
-    frameTrackingResult.clear();
+    // 3.3.4，remove dead tracklet
     for (auto it = trackers.begin(); it != trackers.end();)
     {
-        // min_hits不设置为0是因为第一次检测到的目标不用跟踪，不能设大，一般就是1，表示如果连续两帧都检测到目标
-        int time_window = 1; // 表示连续预测的次数
-        if (((*it).m_time_since_update < time_window) &&
-            ((*it).m_hit_streak >= min_hits || frame_count <= min_hits))
-        {
-            TrackingBox res;
-            res.box = (*it).lastRect;
-            res.track_id = (*it).m_id + 1; // +1 as MOT benchmark requires positive
-            res.frame_id = frame_count;
-            frameTrackingResult.push_back(res);
-            it++;
+        // 移除情况1：稳定的tracker，连续丢失次数超过阈值max_lost_time
+        // 移除情况2：才刚创建的tracker，就连续丢失超过阈值lower_max_lost_time
+        if ((it->m_time_since_update > max_lost_time) || 
+            (it->m_age == max_lost_time && it->m_time_since_update==lower_max_lost_time))
+                it = trackers.erase(it);
+        else{
+            ++it;
         }
-        else
-            it++;
-
-        // remove dead tracklet
-        if (it != trackers.end() && (*it).m_time_since_update > max_age)
-            it = trackers.erase(it);
     }
 
     cycle_time = (double)(getTickCount() - start_time);
     total_time += cycle_time / getTickFrequency();
+}
 
+
+vector<TrackingBox> TRACKER::getReport(){
+    // get trackers' output
+    frameTrackingResult.clear();
+    for (auto it = trackers.begin(); it != trackers.end(); ++it)
+    {
+        // min_hits不设置为0是因为第一次检测到的目标不用跟踪，不能设大，一般就是1，表示如果连续两帧都检测到目标
+        // int time_window = 1; // 表示连续预测的次数
+        // if ((it->m_time_since_update < time_window) && it->m_hit_streak >= min_hits)
+        if (it->m_observed_num >= min_hits)
+        {
+            TrackingBox res;
+            res.box = it->lastRect;
+            res.track_id = it->m_id + 1; // +1 as MOT benchmark requires positive
+            res.frame_id = frame_count;
+            res.obj_conf = it->obj_conf;
+            res.class_id = it->class_id;
+            frameTrackingResult.push_back(res);
+        }
+        else{
+            // 
+        }
+        
+    }
     return frameTrackingResult;
 }

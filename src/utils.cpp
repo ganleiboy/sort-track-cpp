@@ -51,3 +51,33 @@ void splitString(string &str, std::vector<int> &out, char sep)
         pose = str.find_first_of(sep, start);     // 更新pos,从start开始
     }
 }
+
+void drawPic(cv::Mat &img, string savepath, const std::vector<Bbox> &results){
+    vector<cv::Scalar> colors = {{0,0,255}, {0,255,0}, {255,0,0}, {255,255,0}, {0,255,255}, {255,0,255}, {255,153,18}, {255,97,0}};
+    for (auto obj:results){
+        // cv::Scalar color = {rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255)};
+        cv::Scalar color = colors[obj.class_id];
+        // bbox
+        cv::rectangle(img, obj.rect, color, 2);
+        // label
+        int score_ = int(obj.score * 100);
+        string label = to_string(obj.class_id) + "-" + to_string(score_);
+        cv::putText(img, label, {obj.rect.x, obj.rect.y-3}, 0, 0.4, color, 1, 16);
+    }
+    cv::imwrite(savepath, img);
+    cout << "save vis img in: " << savepath << endl;
+}
+
+void drawPic(cv::Mat &img, string savepath, const std::vector<TrackingBox> &results, TRACKER &tracker){
+    for (TrackingBox it : results)
+    {
+        cv::rectangle(img, it.box, tracker.randColor[it.track_id % 255], 2);
+        cv::putText(img,
+                    to_string(it.track_id),
+                    cv::Point2f(it.box.x, it.box.y-5),
+                    cv::FONT_HERSHEY_DUPLEX,
+                    1,
+                    tracker.randColor[it.track_id % 255]);
+    }
+    cv::imwrite(savepath, img);
+}

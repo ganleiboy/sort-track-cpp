@@ -13,4 +13,10 @@ void getFilePaths(string &folder, vector<cv::String> &filepaths, string postfix,
 void getDetectResults(string &detfile, std::map<int, vector<Bbox>> &det_results);
 // 字符串分割，返回vector，sep:分割符号。可应对如下情况："3,4,5" | "3,4,5," | ",3,4,5,"
 void splitString(string &str, vector<int> &out, char sep);
+
+// 可视化检测结果
+void drawPic(cv::Mat &img, string &savepath, const std::vector<Bbox> &results);
+// 可视化跟踪结果
+void drawPic(cv::Mat &img, string savepath, const std::vector<TrackingBox> &results, TRACKER &tracker);
+
 #endif
