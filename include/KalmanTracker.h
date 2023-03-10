@@ -44,7 +44,7 @@ public:
 	StateType get_state();
 	StateType get_rect_xysr(float cx, float cy, float s, float r);
 
-	StateType lastRect;
+	StateType latestRect;  // 当前跟踪序列最新的bbox坐标。在对外输出时：如果有观测值则使用观测值;如果没有观测值就使用预测值
 	static int kf_count;  // 每次调用构造函数kf_count就会加1
 
 	int m_max_missing_observed_num = 2;  // 允许连续跟丢的最大次数，比如101有效、1001有效、10001则无效

@@ -139,7 +139,8 @@ void TRACKER::update(const vector<TrackingBox> &detFrameData)
     }
     
     // 3.3.3，更新未匹配上的跟踪序列
-    // 由于之前已经单独调用过predict函数，所以不再进行任何操作
+    // 由于之前已经单独调用过predict函数，此处直接用预测的结果进行tracker的跟踪
+    // 在predict和update函数中都对latestRect的值进行了更新，此处不再单独操作
 
     // 3.3.4，remove dead tracklet
     for (auto it = trackers.begin(); it != trackers.end();)
@@ -170,7 +171,7 @@ vector<TrackingBox> TRACKER::getReport(){
         if (it->m_observed_num >= min_hits)
         {
             TrackingBox res;
-            res.box = it->lastRect;
+            res.box = it->latestRect;  // 如果有观测值则使用观测值;如果没有观测值就使用预测值
             res.track_id = it->m_id + 1; // +1 as MOT benchmark requires positive
             res.frame_id = frame_count;
             res.obj_conf = it->obj_conf;
